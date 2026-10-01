@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: kmrl_db
+      POSTGRES_USER: kmrl_user
+      POSTGRES_PASSWORD: kmrl_password
+    volumes: [postgres_data:/var/lib/postgresql/data]
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: kmrl_user
+      RABBITMQ_DEFAULT_PASS: kmrl_password
+  redis:
+    image: redis:7-alpine
+  load_balancer_api:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports: ["8000:8000"]
+    environment:
+      DATABASE_URL: postgresql://kmrl_user:kmrl_password@postgres:5432/kmrl_db
+      CELERY_BROKER_URL: amqp://kmrl_user:kmrl_password@rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    depends_on: [postgres, rabbitmq, redis]
+  frontend:
+    build: ./frontend
+    ports: ["8080:80"]
+    environment:
+      KMRL_BACKEND_URL: http://load_balancer_api:8000
+    depends_on: [load_balancer_api]
+volumes:
+  postgres_data:
